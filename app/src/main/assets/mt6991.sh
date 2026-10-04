@@ -184,6 +184,13 @@ stopwatch() {
     fi
     rm -f "$BASE/watch.ready"
 }
+watchalive() {
+    [ -f "$BASE/watch.ready" ] && [ "$(cat "$BASE/watch.boot" 2>/dev/null)" = "$(boot)" ] || return 1
+    watchpid=$(cat "$BASE/watch.pid" 2>/dev/null)
+    number "$watchpid" && kill -0 "$watchpid" 2>/dev/null || return 1
+    watchcommand=$(tr '\000' ' ' < "/proc/$watchpid/cmdline" 2>/dev/null)
+    case "$watchcommand" in *"$SELF watch"*) return 0;; *) return 1;; esac
+}
 switchprofile() {
     pkg=$1; case "$pkg" in ''|*[!A-Za-z0-9_.]*) return 1;; esac
     [ "$(phase)" != trial ] || return 0
@@ -212,7 +219,7 @@ probe)
         [ "$(logical "$sample")" = "$(logical "$oldrequest")" ] || match=0
     fi
     echo "phase=$state"; echo "token=$token"; echo "remaining=$left"; echo "match=$match"; echo "actor=$actor"; echo "target=$target"; echo "last=$(cat "$BASE/last" 2>/dev/null)"
-    echo "auto=$(test -f "$BASE/auto_enabled" && echo 1 || echo 0)"; echo "watch=$(test -f "$BASE/watch.ready" && echo 1 || echo 0)"; echo "foregroundApp=$(cat "$BASE/foreground" 2>/dev/null)"; echo "watchError=$(head -n1 "$BASE/watch-error" 2>/dev/null)"
+    echo "auto=$(test -f "$BASE/auto_enabled" && echo 1 || echo 0)"; echo "watch=$(watchalive && echo 1 || echo 0)"; echo "foregroundApp=$(cat "$BASE/foreground" 2>/dev/null)"; echo "watchError=$(head -n1 "$BASE/watch-error" 2>/dev/null)"
     # Translate the raw GED indices for the persisted intent separately from instantaneous readings.
     if [ -n "$target" ]; then set -- $target; echo "targetGpu=$(gpufreq "$7");$(gpufreq "$8")"; fi
     ;;
@@ -235,6 +242,7 @@ start)
     [ -f "$BASE/watch.ready" ] || { stopwatch; fail '前台事件监听启动失败'; };;
 stop) stopwatch;;
 watch)
+    boot > "$BASE/watch.boot"
     echo "$$" > "$BASE/watch.pid"
     echo "$$" > /sys/fs/cgroup/cgroup.procs && echo "$$" > /dev/cpuset/tasks || exit 1
     fifo=$BASE/events.fifo; rm -f "$fifo"; mkfifo "$fifo" || exit 1

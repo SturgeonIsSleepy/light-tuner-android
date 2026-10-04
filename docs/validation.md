@@ -4,7 +4,7 @@
 
 ## 构建和测试
 
-使用 JDK 21、Gradle 8.11.1、Android Gradle Plugin 8.10.1、Android SDK 36。`assembleDebug`、`testDebugUnitTest`、`lintDebug` 均通过。18 项 JVM 测试无失败，覆盖 Profile/PolicyBook 格式、Preset与全局回退、应用自定义覆盖、完整 CPU/GPU 范围、读数与目标分离、重新读取恢复以及无效导入。Lint 无错误，仍有文档化的 Android/Gradle 本地化建议警告。调试 APK 由 Gradle 调试密钥签名。
+使用 JDK 21、Gradle 8.11.1、Android Gradle Plugin 8.10.1、Android SDK 36。`assembleDebug`、`testDebugUnitTest`、`lintDebug` 均通过。19 项 JVM 测试无失败，覆盖 Profile/PolicyBook 格式、Preset与全局回退、应用自定义覆盖、完整 CPU/GPU 范围、读数与目标分离、重新读取恢复以及无效导入。Lint 无错误，仍有文档化的 Android/Gradle 本地化建议警告。调试 APK 由 Gradle 调试密钥签名。
 
 ## K80 Ultra 设备检查
 
@@ -12,7 +12,11 @@
 
 一次含 GPU 及四组 cpuset 的短事务成功，回读与目标一致。第二次试用直接替换第一套已确认配置，不要求先恢复；回滚退回第一套配置。随后结束接管，CPU、GPU、四组 cpuset 回到测试前状态。GPU 上限 sysfs 节点在该机原为 0444；写入前加写权限位，事务结束后恢复 0444。最终 GED POWERHAL ceiling 回到测试前索引32、floor索引49。
 
-本机短操作显示手机仍可响应；配置试用没有持续复现屏幕卡死。短测试不构成长期功耗或温升基准。应用 RootSession、GPU/四组编辑和完整 APK UI流程没有全套逐项实机回归，运行时包切换完成fixture模拟，但还没有真实天学网连续使用测试。
+原生界面试用及确认完成实机检查；未确认的一次试用在真实节点上自动超时返回。退出并重进后，无需点击刷新，自动复核显示「配置已保存，当前读数一致」。应用选择器能读取启动器应用列表。
+
+真实事件监听以系统设置应用为测试对象：进入设置后 CPU0 上限切换为 1000 MHz、GPU 请求上限 832 MHz、用户后台核心变为 CPU0–4；回到桌面后恢复全局的 800 MHz、780 MHz、CPU0–3。对应 phase 为 active、match 为 1、前台包名正确。测试后停止监听并恢复原值。没有进行天学网的真实连续使用或功耗效果验证。
+
+后台监听只保留 shell 与 logcat 两个进程。一次静置采样的 PSS 分别为 1681、1450 KiB，合计约 3.1 MB；5 秒内两进程的 CPU 计时均未增加。该数值不包含界面缓存进程、切换期间临时进程，不能当作整机功耗或长期待机数据。短操作未复现屏幕卡死，不构成长期稳定性保证。
 
 ## 隔离文件事务回归
 

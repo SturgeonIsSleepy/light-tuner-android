@@ -66,9 +66,10 @@ public final class MainActivity extends Activity {
                 if(controller==null)controller=new PlatformController(this);next=op.execute(controller);
                 if(book==null){
                     String saved=getPreferences(0).getString("book3","");
-                    if(saved.isEmpty())initial=next.defaults();else initial=PolicyBook.parse(saved);
-                    for(PlatformProfile p:initial.presets)next.validate(p);
-                    for(PolicyBook.Rule r:initial.apps.values())if(r.custom!=null)next.validate(r.custom);
+                    PolicyBook candidate=saved.isEmpty()?next.defaults():PolicyBook.parse(saved);
+                    for(PlatformProfile p:candidate.presets)next.validate(p);
+                    for(PolicyBook.Rule r:candidate.apps.values())if(r.custom!=null)next.validate(r.custom);
+                    initial=candidate;
                 }
                 result=label+"完成 · "+(SystemClock.elapsedRealtime()-start)+" ms";
             }catch(Exception e){result=e.getMessage()==null?e.toString():e.getMessage();if(controller!=null){controller.close();controller=null;}}
@@ -88,8 +89,10 @@ public final class MainActivity extends Activity {
     private void storeForm()throws Exception{PlatformProfile p=form();snapshot.validate(p);if(editingApp==null)book.presets[editing]=p;else book.apps.get(editingApp).custom=p;saveLocal();}
     private void saveEditor(){try{storeForm();message="设置已保存为草稿，尚未同步硬件";updateStatus();}catch(Exception e){toast(e.getMessage());}}
     private void tryEditor(){try{storeForm();PlatformProfile p=editor();if(editingApp==null){book.global=PolicyBook.IDS[editing];saveLocal();}run("试用编辑配置",c->c.apply(p));scroller.smoothScrollTo(0,0);}catch(Exception e){toast(e.getMessage());}}
-    private void confirm(){String token=snapshot.token;run("保留本次配置",c->{PlatformController.Snapshot s=c.confirm(token);c.installBook(book);return s;});}
-    private void sync(){saveLocal();run("同步三预设与分应用策略",c->c.reload(book));}
+    private PolicyBook frozenBook() throws Exception{return PolicyBook.parse(book.json().toString());}
+    private void confirm(){try{String token=snapshot.token;PolicyBook prepared=frozenBook();run("保留本次配置",c->{PlatformController.Snapshot s=c.confirm(token);c.installBook(prepared);return s;});}catch(Exception e){toast(e.getMessage());}}
+    private void sync(){try{saveLocal();PolicyBook prepared=frozenBook();run("同步三预设与分应用策略",c->c.reload(prepared));}catch(Exception e){toast(e.getMessage());}}
+    private void toggleAuto(){try{boolean enabled=snapshot.auto;PolicyBook prepared=frozenBook();run("更新自动切换",c->enabled?c.stopAuto(prepared):c.startAuto(prepared));}catch(Exception e){toast(e.getMessage());}}
     private void updateStatus(){
         if(stateText==null)return;
         if(snapshot==null)stateText.setText(busy?"读取设备中":"需要 Root 权限");
@@ -100,7 +103,8 @@ public final class MainActivity extends Activity {
             StringBuilder out=new StringBuilder("最近回读\n");
             for(int i=0;i<3;i++)out.append(cluster(i)).append("  ").append(mhz(snapshot.min[i])).append(" – ").append(mhz(snapshot.max[i])).append('\n');
             out.append("GPU  ").append(mhz(snapshot.gpuMin)).append(" – ").append(mhz(snapshot.gpuMax)).append('\n');
-            if(snapshot.phase.equals("active")||snapshot.phase.equals("legacy")||snapshot.phase.equals("trial"))try{PlatformProfile target=snapshot.intent();out.append("\n保存的目标\n");for(int i=0;i<3;i++)out.append(cluster(i)).append("  ").append(mhz(target.min[i])).append(" – ").append(mhz(target.max[i])).append('\n');out.append("GPU  ").append(mhz(target.gpuMin)).append(" – ").append(mhz(target.gpuMax)).append('\n');}catch(Exception e){out.append("目标数据无法读取\n");}
+            for(int i=0;i<4;i++)out.append(GROUP_LABELS[i]).append("  CPU ").append(cpuList(snapshot.masks[i])).append('\n');
+            if(snapshot.phase.equals("active")||snapshot.phase.equals("legacy")||snapshot.phase.equals("trial"))try{PlatformProfile target=snapshot.intent();out.append("\n保存的目标\n");for(int i=0;i<3;i++)out.append(cluster(i)).append("  ").append(mhz(target.min[i])).append(" – ").append(mhz(target.max[i])).append('\n');out.append("GPU  ").append(mhz(target.gpuMin)).append(" – ").append(mhz(target.gpuMax)).append('\n');for(int i=0;i<4;i++)out.append(GROUP_LABELS[i]).append("  CPU ").append(cpuList(target.masks[i])).append('\n');}catch(Exception e){out.append("目标数据无法读取\n");}
             out.append("\n自动切换：").append(snapshot.auto?(snapshot.watch?"运行中":"监听异常"):"已关闭");if(!snapshot.foreground.isEmpty())out.append("\n前台应用：").append(snapshot.foreground);if(!snapshot.watchError.isEmpty())out.append("\n切换提示：").append(snapshot.watchError);
             detailText.setText(out.toString());
         }
@@ -140,7 +144,7 @@ public final class MainActivity extends Activity {
     }
     private void renderApps(){
         LinearLayout c=card();c.addView(text("分应用策略",18,INK,true));c.addView(text("前台应用使用专属预设或独立设置\n离开后回到全局默认，未匹配应用也用全局默认",12,MUTED,false));
-        button(c,"添加已安装应用",true,this::chooseApp);autoButton=button(c,"",true,()->{PolicyBook captured=book;run("更新自动切换",x->snapshot.auto?x.stopAuto(captured):x.startAuto(captured));});syncButton=button(c,"同步已保存的策略",false,this::sync);
+        button(c,"添加已安装应用",true,this::chooseApp);autoButton=button(c,"",true,this::toggleAuto);syncButton=button(c,"同步已保存的策略",false,this::sync);
         if(book.apps.isEmpty())c.addView(text("还没有分应用策略",13,MUTED,false));
         for(Map.Entry<String,PolicyBook.Rule> e:book.apps.entrySet()){
             String pkg=e.getKey();PolicyBook.Rule rule=e.getValue();LinearLayout app=card();app.addView(text(appName(pkg),16,INK,true));app.addView(text(pkg,11,MUTED,false));app.addView(text(!rule.enabled?"已停用":rule.custom!=null?"独立设置":PolicyBook.NAMES[PolicyBook.index(rule.preset)],13,GREEN,true));
@@ -168,7 +172,7 @@ public final class MainActivity extends Activity {
         LinearLayout files=card();files.addView(text("配置集文件",18,INK,true));button(files,"导入配置集 JSON",false,()->{waitingDocument=true;startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE),1);});
         button(files,"导出三预设与分应用策略",false,()->{try{pendingExport=book.json().toString(2);waitingDocument=true;startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/json").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,"mt6991-policies-v3.json"),2);}catch(Exception e){toast(e.getMessage());}});
         button(files,"查看导入规范",false,()->new AlertDialog.Builder(this).setTitle("配置集 v3").setMessage("UTF-8 JSON，最大 64 KiB\nschemaVersion：3，platform：mt6991\nglobalPreset：全局预设名称\npresets：powersave / balanced / performance\n每套包含三簇 CPU、GPU 范围和四组核心\nCPU 与 GPU 频率均用整数 kHz\napplications：包名、enabled、preset、可选 custom\n\n导入只更新草稿。旧 v2 全局文件可导入均衡预设，补齐 GPU 和新增进程组。").setPositiveButton("知道了",null).show());
-        syncButton=button(files,"同步已保存的策略",true,this::sync);autoButton=button(files,"",true,()->run("更新自动切换",c->snapshot.auto?c.stopAuto(book):c.startAuto(book)));restoreButton=button(files,"结束接管并恢复",false,()->run("恢复接管前设置",PlatformController::restore));
+        syncButton=button(files,"同步已保存的策略",true,this::sync);autoButton=button(files,"",true,this::toggleAuto);restoreButton=button(files,"结束接管并恢复",false,()->run("恢复接管前设置",PlatformController::restore));
         space(content,8);content.addView(text("自动切换监听前台事件，无持续进程扫描\n其他工具不要同时改写相同的 CPU/GPU 节点\n不停止系统性能、温控或充电保护服务",12,MUTED,false));
     }
     @Override public void onActivityResult(int req,int result,Intent data){
@@ -189,6 +193,7 @@ public final class MainActivity extends Activity {
     private Spinner selector(List<String> labels,int chosen){Spinner s=new Spinner(this);ArrayAdapter<String>a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,labels);a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);s.setAdapter(a);s.setSelection(chosen);return s;}
     private Spinner frequencies(List<Integer> values,int chosen){List<String>labels=new ArrayList<>();for(int n:values)labels.add(mhz(n));return selector(labels,Math.max(0,values.indexOf(chosen)));}
     private static String mhz(int k){return k/1000+" MHz";}
+    private static String cpuList(int mask){StringJoiner s=new StringJoiner(", ");for(int i=0;i<8;i++)if((mask&(1<<i))!=0)s.add(Integer.toString(i));return s.toString();}
     private static String cluster(int i){return i==0?"CPU0–3":i==1?"CPU4–6":"CPU7";}
     private int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
     private LinearLayout column(){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);return v;}
