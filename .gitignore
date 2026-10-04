@@ -1,0 +1,12 @@
+.gradle/
+**/build/
+local.properties
+*.jks
+*.apk
+archive/
+test-artifacts/
+release-artifacts/
+tools/
+probe/
+device-surfaceflinger.txt
+.DS_Store

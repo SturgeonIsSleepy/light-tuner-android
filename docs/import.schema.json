@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "轻调 MT6991 调度配置集 v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "platform", "globalPreset", "presets", "applications"],
+  "properties": {
+    "schemaVersion": {"const": 3},
+    "platform": {"const": "mt6991"},
+    "globalPreset": {"enum": ["powersave", "balanced", "performance"]},
+    "presets": {
+      "type": "object", "additionalProperties": false,
+      "required": ["powersave", "balanced", "performance"],
+      "properties": {
+        "powersave": {"$ref": "#/$defs/profile"},
+        "balanced": {"$ref": "#/$defs/profile"},
+        "performance": {"$ref": "#/$defs/profile"}
+      }
+    },
+    "applications": {
+      "type": "array", "maxItems": 200,
+      "items": {"$ref": "#/$defs/application"}
+    }
+  },
+  "$defs": {
+    "cpuList": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "integer", "minimum": 0, "maximum": 7}},
+    "cluster": {
+      "type": "object", "additionalProperties": false, "required": ["policy", "minKHz", "maxKHz"],
+      "properties": {
+        "policy": {"enum": ["policy0", "policy4", "policy7"]},
+        "minKHz": {"type": "integer", "minimum": 339000, "maximum": 3730000},
+        "maxKHz": {"type": "integer", "minimum": 339000, "maximum": 3730000}
+      }
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["clusters", "gpu", "cpuSets"],
+      "properties": {
+        "clusters": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/cluster"}},
+        "gpu": {
+          "type": "object", "additionalProperties": false, "required": ["minKHz", "maxKHz"],
+          "properties": {"minKHz": {"type": "integer", "minimum": 338000, "maximum": 1612000}, "maxKHz": {"type": "integer", "minimum": 338000, "maximum": 1612000}}
+        },
+        "cpuSets": {
+          "type": "object", "additionalProperties": false,
+          "required": ["background", "systemBackground", "foreground", "topApp"],
+          "properties": {"background": {"$ref": "#/$defs/cpuList"}, "systemBackground": {"$ref": "#/$defs/cpuList"}, "foreground": {"$ref": "#/$defs/cpuList"}, "topApp": {"$ref": "#/$defs/cpuList"}}
+        }
+      }
+    },
+    "application": {
+      "type": "object", "additionalProperties": false,
+      "required": ["packageName", "enabled", "preset"],
+      "properties": {
+        "packageName": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$"},
+        "enabled": {"type": "boolean"},
+        "preset": {"enum": ["powersave", "balanced", "performance"]},
+        "custom": {"$ref": "#/$defs/profile"}
+      }
+    }
+  }
+}

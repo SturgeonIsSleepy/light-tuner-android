@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 3,
+  "platform": "mt6991",
+  "globalPreset": "balanced",
+  "presets": {
+    "powersave": {
+      "clusters": [
+        { "policy": "policy0", "minKHz": 339000, "maxKHz": 1200000 },
+        { "policy": "policy4", "minKHz": 622000, "maxKHz": 1800000 },
+        { "policy": "policy7", "minKHz": 798000, "maxKHz": 2200000 }
+      ],
+      "gpu": { "minKHz": 338000, "maxKHz": 624000 },
+      "cpuSets": { "background": [0,1,2,3], "systemBackground": [0,1,2,3], "foreground": [0,1,2,3,4,5], "topApp": [0,1,2,3,4,5] }
+    },
+    "balanced": {
+      "clusters": [
+        { "policy": "policy0", "minKHz": 339000, "maxKHz": 1200000 },
+        { "policy": "policy4", "minKHz": 622000, "maxKHz": 1800000 },
+        { "policy": "policy7", "minKHz": 798000, "maxKHz": 2800000 }
+      ],
+      "gpu": { "minKHz": 338000, "maxKHz": 780000 },
+      "cpuSets": { "background": [0,1,2,3], "systemBackground": [0,1,2,3], "foreground": [0,1,2,3,4,5,6,7], "topApp": [4,5,6,7] }
+    },
+    "performance": {
+      "clusters": [
+        { "policy": "policy0", "minKHz": 339000, "maxKHz": 2400000 },
+        { "policy": "policy4", "minKHz": 622000, "maxKHz": 3300000 },
+        { "policy": "policy7", "minKHz": 798000, "maxKHz": 3730000 }
+      ],
+      "gpu": { "minKHz": 338000, "maxKHz": 1612000 },
+      "cpuSets": { "background": [0,1,2,3,4,5,6,7], "systemBackground": [0,1,2,3,4,5,6,7], "foreground": [0,1,2,3,4,5,6,7], "topApp": [0,1,2,3,4,5,6,7] }
+    }
+  },
+  "applications": [
+    {
+      "packageName": "com.up366.mobile",
+      "enabled": true,
+      "preset": "balanced",
+      "custom": {
+        "clusters": [
+          { "policy": "policy0", "minKHz": 339000, "maxKHz": 1200000 },
+          { "policy": "policy4", "minKHz": 622000, "maxKHz": 1800000 },
+          { "policy": "policy7", "minKHz": 798000, "maxKHz": 2800000 }
+        ],
+        "gpu": { "minKHz": 338000, "maxKHz": 780000 },
+        "cpuSets": { "background": [0,1,2,3], "systemBackground": [0,1,2,3], "foreground": [0,1,2,3,4,5,6,7], "topApp": [4,5,6,7] }
+      }
+    }
+  ]
+}
