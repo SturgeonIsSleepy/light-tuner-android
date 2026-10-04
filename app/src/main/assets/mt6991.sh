@@ -228,7 +228,10 @@ confirm)
     lock || fail '已有操作正在执行'; load || fail '试用已结束'
     [ "$2" = "$token" ] && [ "$(phase)" = trial ] && [ "$(now)" -lt "$deadline" ] && [ "$(cat "$BASE/applied" 2>/dev/null)" = "$token" ] || fail '试用已过期或未完整应用'
     setphase active; deadline=0; save; echo confirmed > "$BASE/last"; echo '配置已保留';;
-rollback) lock || fail '已有操作正在执行'; rollback manual;;
+rollback)
+    lock || fail '已有操作正在执行'
+    if [ -n "$2" ]; then load && [ "$2" = "$token" ] && [ "$(phase)" = trial ] || exit 0; fi
+    rollback manual;;
 restore)
     stopwatch; lock || fail '已有操作正在执行'; load || exit 0
     [ "$savedboot" = "$(boot)" ] || { clearlease; exit 0; }; setphase restoring
@@ -246,7 +249,8 @@ watch)
     echo "$$" > "$BASE/watch.pid"
     echo "$$" > /sys/fs/cgroup/cgroup.procs && echo "$$" > /dev/cpuset/tasks || exit 1
     fifo=$BASE/events.fifo; rm -f "$fifo"; mkfifo "$fifo" || exit 1
-    logcat -b events -v raw -T 1 -s wm_set_resumed_activity > "$fifo" 2>/dev/null & reader=$!
+    since=$(date +%s.%N)
+    logcat -b events -v raw -T "$since" -s wm_set_resumed_activity > "$fifo" 2>/dev/null & reader=$!
     trap 'kill "$reader" 2>/dev/null; if [ "$(cat "$BASE/watch.pid" 2>/dev/null)" = "$$" ]; then rm -f "$fifo" "$BASE/watch.ready" "$BASE/watch.pid"; fi' EXIT
     trap 'exit 0' TERM INT
     foreground=$(dumpsys activity activities | awk '/topResumedActivity/ {for(i=1;i<=NF;i++) if($i ~ /\//){split($i,a,"/"); print a[1]; exit}}')

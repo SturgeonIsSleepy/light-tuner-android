@@ -38,6 +38,10 @@ public final class PlatformController implements AutoCloseable {
         installBook(book); Snapshot s=probe(); if(s.auto) { String pkg=s.foreground; if(!pkg.matches("[A-Za-z0-9_.]+")) pkg="global"; shell.exec("sh "+HELPER+" switch "+pkg); } return probe();
     }
     public Snapshot restore() throws Exception { shell.exec("sh "+HELPER+" restore"); return probe(); }
+    public Snapshot rollback(String token) throws Exception {
+        if(!token.matches("[0-9a-f-]{36}")) throw new IOException("试用编号无效");
+        shell.exec("sh "+HELPER+" rollback "+token); return probe();
+    }
     @Override public void close() { shell.close(); }
 
     public static final class Snapshot {

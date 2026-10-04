@@ -41,13 +41,6 @@ public final class PlatformProfile {
     public static JSONObject object(String text) throws JSONException {
         JSONTokener t=new JSONTokener(text); Object v=t.nextValue(); require(v instanceof JSONObject && t.nextClean()==0,"文件必须是一个 JSON 对象"); return (JSONObject)v;
     }
-    public static PlatformProfile legacy(JSONObject o,PlatformProfile device) throws JSONException {
-        keys(o,"schemaVersion","platform","clusters","cpuSets"); require(integer(o,"schemaVersion")==2 && "mt6991".equals(o.get("platform")),"旧版格式不支持");
-        JSONObject sets=o.getJSONObject("cpuSets"); keys(sets,"topApp","background");
-        JSONObject full=new JSONObject().put("clusters",o.getJSONArray("clusters")).put("gpu",device.json().getJSONObject("gpu"))
-            .put("cpuSets",new JSONObject().put("background",sets.getJSONArray("background")).put("topApp",sets.getJSONArray("topApp")).put("systemBackground",array(device.masks[1])).put("foreground",array(device.masks[2])));
-        return parse(full);
-    }
     private static JSONArray array(int mask) { JSONArray a=new JSONArray(); for(int i=0;i<8;i++) if((mask&(1<<i))!=0) a.put(i); return a; }
     private static int mask(JSONArray a) throws JSONException {
         require(a.length()>0 && a.length()<=8,"核心列表为空或过长"); int result=0;

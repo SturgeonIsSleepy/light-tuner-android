@@ -29,4 +29,4 @@
 
 所有对象只接受规范中列出的字段。字段、频率和 CPU 编号都不接受脚本表达式。CPU 和 GPU 频率必须是整数，不能是字符串或小数。缺少字段、未知字段、未知或重复 CPU 簇、重复应用包名、空核心组、不支持的实际档位、超出文件大小限制和尾随的额外对象都会拒绝导入。
 
-旧版 v2 全局文件只带 CPU、前台和后台核心组；导入后写入均衡预设，新 GPU 范围与两类未定义的核心组来自当前设备读数。新格式示例：[mt6991-policy-book.json](../examples/mt6991-policy-book.json)。静态字段由 [JSON Schema](import.schema.json) 校验，实际硬件档位由应用二次校验。
+0.4.3 不提供文件导入或导出，格式文档用于说明本地保存的数据及历史示例；已移除不再使用的 v2 文件转换器，原有 Root 接管记录的读取和恢复兼容仍保留。v3 示例：[mt6991-policy-book.json](../examples/mt6991-policy-book.json)。静态字段见 [JSON Schema](import.schema.json)，本地配置的实际硬件档位由应用校验。

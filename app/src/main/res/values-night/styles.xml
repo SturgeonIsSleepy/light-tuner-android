@@ -1,0 +1,16 @@
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">@color/app_primary</item>
+        <item name="android:colorControlActivated">@color/app_primary</item>
+        <item name="android:colorControlNormal">@color/app_muted</item>
+        <item name="android:colorBackground">@color/app_background</item>
+        <item name="android:colorBackgroundFloating">@color/app_surface</item>
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:textColorPrimary">@color/app_text</item>
+        <item name="android:textColorSecondary">@color/app_muted</item>
+        <item name="android:textColorAlertDialogListItem">@color/app_text</item>
+        <item name="android:buttonStyle">@style/FlatButton</item>
+        <item name="android:buttonBarButtonStyle">@style/FlatDialogButton</item>
+        <item name="android:alertDialogTheme">@style/AppDialogTheme</item>
+    </style>
+</resources>

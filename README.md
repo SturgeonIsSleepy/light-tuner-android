@@ -1,44 +1,62 @@
-# 轻调 · MT6991 全局与分应用调度
+# 轻调 · Light Tuner
 
-Android Root 调度应用，适配天玑 9400+（MT6991），已在 REDMI K80 Ultra、澎湃 OS3、KernelSU 上进行短时设备检查。应用原生 Java 界面读取手机实际的 CPU/GPU 档位。
+面向 **天玑 9400+（MT6991）** 的 Android Root 调度工具。可调整 CPU 与 GPU 频率范围、为进程组分配 CPU，并按前台应用切换策略。
+
+> 仅针对 MT6991 设备设计，需要 Android 12 或更新版本和 KernelSU Root。其他芯片组没有适配或验证。调度设置会影响设备运行，请先用安全的配置进行短时试用。
+
+[下载最新版](https://github.com/SturgeonIsSleepy/light-tuner-android/releases/latest) · [配置格式说明](docs/import-format.md) · [天学网示例](examples/mt6991-policy-book.json)
 
 ## 功能
 
-- CPU0–3、CPU4–6、CPU7 的最低和最高频率，所有设备档位可选
-- GPU Mali 的最低和最高频率，按 GED OPP 档位设置，保留系统温控与电源限制
-- 用户后台、系统后台、前台进程、顶层进程分别选用 CPU0–7
-- 可编辑的省电、均衡、性能三套预设，全局默认选择，以及可按应用单独自定义
-- 分应用自动切换由 Android 前台活动事件触发，不轮询应用进程列表
-- JSON 配置集导入和导出
-- CPU/GPU 与核心分配试用、替换、回滚和手动恢复
-- 支持 v2 全局文件迁移；分应用规则由 v3 配置集导入
+- CPU0–3、CPU4–6、CPU7：从设备支持的频率挡位设置上下限
+- Mali GPU：读取 MTK GED 实际频率挡位，设置频率范围
+- 用户后台、系统后台、前台、顶层进程：分别分配 CPU0–7
+- 编辑省电、均衡、性能预设，选择全局默认，或为应用设置独立策略
+- 根据 Android 前台应用事件自动切换策略，不持续扫描进程
+- 试用、确认、撤回配置，或结束接管并恢复原设置
+- 查看当前配置、已应用目标、CPU 调速器和分应用配置
 
-Root 写入采用短时回滚保护。重新试用配置会以最近一次确认的配置作为回滚点，不必先恢复到项目启动前的值。GPU 节点原有权限会在每次受控写入后立即还原。
+## 获取与安装
 
-## 安装和使用
+1. 从 [Releases](https://github.com/SturgeonIsSleepy/light-tuner-android/releases) 下载 APK。
+2. 安装「轻调」，在 KernelSU 中授予 Root 权限。
+3. 打开应用，等待读取设备频率和当前调度状态。
+4. 首次使用先选择均衡预设试用，在倒计时结束前确认或撤回。
 
-构建 `app` 调试变体，安装 APK，并在 KernelSU 中授予 Root 权限。首次打开时轻调会自动读取设备配置与频率档位。
+Release 中的 APK 使用 Android 调试签名。若 Android 提示与其他签名版本不一致，需要先卸载旧版本再安装；卸载会清除应用本地保存的预设和日志。
 
-在「预设配置」中调整频率和四类进程组，可保存预设草稿并试用。确认本次试用后，该配置留到下次调整或重启。在「分应用」中选择已安装的启动器应用，指派三套预设之一，或创建独立设置；启用自动切换后，轻调按前台应用套用策略，未匹配的应用回到全局预设。
+## 使用说明
 
-Scene 和其他调度工具不要同时写入相同的 CPU/GPU 节点。轻调保留 `sugov_ext`、Power/MiPerf、温控和充电保护，不锁频率节点权限，不停系统服务。启用应用自动切换不会自动启动开机服务；重启后从应用重新启用。
+首页的接管开关用于应用或恢复全局配置。点「检测」只重新读取配置；点接管卡片进入配置详情。选择省电、均衡或性能可编辑相应预设。切换「全局默认」会立即试用并打开倒计时弹窗；确认后保留设置，未确认会自动撤回。
 
-## 配置文件
+主页状态表示当前读数与已保存目标之间的关系：「配置应用中」表示一致，「配置被修改」表示读数不同，「未启用配置」表示当前没有本应用接管记录。系统温控、电源服务或其他调度工具可能影响读数。
 
-- [v3 配置集规范](docs/import-format.md)
-- [JSON Schema](docs/import.schema.json)
-- [完整三预设及天学网示例](examples/mt6991-policy-book.json)
-- [实现选择与硬件接口](docs/rework.md)
-- [构建和设备验证记录](docs/validation.md)
+在「分应用策略」里添加已安装的启动器应用，并选择预设或编辑独立设置。启用自动切换后，离开匹配应用会回到全局默认。关闭自动切换后可继续使用全局配置。
 
-v3 配置集为 UTF-8 JSON，最大 64 KiB，只包含数据。CPU/GPU 档位和核心数量会与设备读数校验。导入只保存草稿，须在界面同步或试用后才写入设备。旧版 v2 全局文件可导入均衡预设；旧版天学网 Thread-N/nice/锁帧规则不等价迁移，本版分应用策略是前台场景的 CPU/GPU 与四组 cpuset 配置。
+日志默认关闭。开启后记录本应用内的操作和错误，最多保留 120 条；关闭时清除日志。日志保存在应用私有数据中，不采集后台运行记录。
 
-## 构建
+## 设备适配与共存
 
-需要 JDK 17 或以上及 Android SDK 36：
+本项目针对 REDMI K80 至尊版上的 MT6991 实现。CPU 簇映射为 CPU0–3、CPU4–6、CPU7；GPU 使用联发科 GED 接口。代码会核对实际频率表和调速器，并在试用期间保留自动回滚保护。
+
+不要让 Scene 或其他工具同时改写相同的 CPU、GPU 或 cpuset 节点；系统没有为这些写入提供统一仲裁。轻调保留设备的 `sugov_ext`、Power/MiPerf、温控和充电保护服务，不修改电压或开关核。启用自动切换不会设置开机自启，设备重启后需要重新开启。
+
+## 配置数据
+
+预设与分应用策略保存在应用私有数据中，使用 MT6991 v3 配置结构。应用当前没有配置文件导入或导出入口；仓库提供的 JSON Schema 和示例用于查看数据格式。示例包含天学网规则，策略只调整应用前台场景的 CPU/GPU 范围和进程组绑核。
+
+旧版的 `Thread-N`、`nice` 和锁帧脚本不能直接转换成本项目策略。
+
+## 从源码构建
+
+需要 JDK 17 或更新版本，以及 Android SDK 36：
 
 ```powershell
-.\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --offline --console=plain
+.\gradlew.bat :app:assembleDebug
 ```
 
-输出文件为 `app/build/outputs/apk/debug/app-debug.apk`，使用调试签名。仓库保存可构建源码、规范和回归测试，不提交私有签名、机器路径、设备日志、测试截图或生成的 APK。
+APK 输出位置：`app/build/outputs/apk/debug/app-debug.apk`。详细实现和验证记录见 [docs](docs/)。
+
+## 版本说明
+
+最新版本和安装包请查看 [GitHub Releases](https://github.com/SturgeonIsSleepy/light-tuner-android/releases)。本项目尚未提供生产签名 APK；硬件兼容范围以本文所列设备平台为准。
