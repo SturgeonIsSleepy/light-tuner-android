@@ -6,7 +6,9 @@ local.properties
 archive/
 test-artifacts/
 release-artifacts/
-tools/
+.secrets/
+.wrangler/
+cloud/.wrangler/
 probe/
 device-surfaceflinger.txt
 .DS_Store

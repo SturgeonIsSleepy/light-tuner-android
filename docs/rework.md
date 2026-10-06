@@ -1,5 +1,7 @@
 # 轻调 v0.3 实现说明
 
+本文件保留 v0.3 的设计背景。0.5.0 增加了长期恢复守护、窗口事件合并及独立线程工作进程，当前功能和限制以 README、共享协议及版本记录为准；下方旧版「只运行短时守护」「没有线程扫描」的描述不适用于已开启线程规则的新版本。
+
 目标设备为 MT6991、三簇 CPU0–3 / CPU4–6 / CPU7 与 Mali GPU。CPU 档位来自对应 cpufreq policy，GPU 档位与索引来自 `/proc/gpufreqv2/stack_working_opp_table`。GPU 上限写入 GED `custom_upbound_gpu_freq` 索引，下限写入 `custom_boost_gpu_freq` 索引；节点原本只读时，事务临时增加写位，完成后恢复读数前的权限位。
 
 ## 读取正确性

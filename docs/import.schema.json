@@ -196,6 +196,32 @@
               "$ref": "#/$defs/cpuList"
             }
           }
+        },
+        "response": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "upRateUs",
+            "downRateUs",
+            "topAppMinPercent"
+          ],
+          "properties": {
+            "upRateUs": {
+              "type": "integer",
+              "minimum": -1,
+              "maximum": 1000000
+            },
+            "downRateUs": {
+              "type": "integer",
+              "minimum": -1,
+              "maximum": 1000000
+            },
+            "topAppMinPercent": {
+              "type": "integer",
+              "minimum": -1,
+              "maximum": 80
+            }
+          }
         }
       }
     },

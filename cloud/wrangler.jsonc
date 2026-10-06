@@ -1,0 +1,10 @@
+{
+  "name": "lighttuner-threads",
+  "main": "worker.js",
+  "account_id": "50b20e3e34f9d05de02b1c2ba54a8e7b",
+  "compatibility_date": "2026-10-05",
+  "workers_dev": true,
+  "preview_urls": false,
+  "ratelimits": [{"name":"UPLOAD_LIMIT","namespace_id":"9400501","simple":{"limit":6,"period":60}}],
+  "d1_databases": [{"binding":"DB","database_name":"lighttuner-threads","database_id":"c3ec1d57-c7e9-4999-b68a-bd4719ad3ee7"}]
+}

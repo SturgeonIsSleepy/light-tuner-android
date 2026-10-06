@@ -1,4 +1,4 @@
-package cc.ccwu.apptuner;
+package io.github.sturgeonissleepy.lighttuner;
 
 import org.json.*;
 import java.util.*;
@@ -17,7 +17,7 @@ public final class PolicyBook {
     }
     public PlatformProfile profile(String id) { return presets[index(id)]; }
     public static int index(String id) { return Arrays.asList(IDS).indexOf(id); }
-    public static boolean packageAllowed(String pkg) { return pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+") && !List.of("cc.ccwu.apptuner","com.android.systemui","me.weishu.kernelsu").contains(pkg); }
+    public static boolean packageAllowed(String pkg) { return pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+") && !List.of("io.github.sturgeonissleepy.lighttuner","cc.ccwu.apptuner","com.android.systemui","me.weishu.kernelsu").contains(pkg); }
     public PlatformProfile forApp(String pkg) { Rule rule=apps.get(pkg); return rule!=null && rule.enabled ? rule.resolve(this) : profile(global); }
     public String rootRules() {
         StringBuilder out=new StringBuilder("* "+profile(global).arguments()+"\n");

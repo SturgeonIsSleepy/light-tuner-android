@@ -1,5 +1,7 @@
 # 调度配置集 v3
 
+当前 0.5.0 不提供本地文件导入／导出。此文描述本地保存的全局与分应用数据格式；线程规则及云端下发格式见 [共享协议](thread-sharing.md)。
+
 文件是 UTF-8 JSON，最大 65,536 字节。配置根对象的字段固定为 `schemaVersion`、`platform`、`globalPreset`、`presets`、`applications`。应用只在 MT6991、实测 CPU/GPU 档位范围内读取并验证配置。导入只更新草稿，不直接写硬件。
 
 ## 三套预设
@@ -30,3 +32,9 @@
 所有对象只接受规范中列出的字段。字段、频率和 CPU 编号都不接受脚本表达式。CPU 和 GPU 频率必须是整数，不能是字符串或小数。缺少字段、未知字段、未知或重复 CPU 簇、重复应用包名、空核心组、不支持的实际档位、超出文件大小限制和尾随的额外对象都会拒绝导入。
 
 0.4.3 不提供文件导入或导出，格式文档用于说明本地保存的数据及历史示例；已移除不再使用的 v2 文件转换器，原有 Root 接管记录的读取和恢复兼容仍保留。v3 示例：[mt6991-policy-book.json](../examples/mt6991-policy-book.json)。静态字段见 [JSON Schema](import.schema.json)，本地配置的实际硬件档位由应用校验。
+
+## 0.7.0 可选响应参数
+
+Profile 可选 response 对象：upRateUs、downRateUs 为整数 -1～1000000，topAppMinPercent 为整数 -1～80，三字段都必须存在。-1 表示跟随系统；对象缺失时三个字段都默认 -1。升降频响应应用到 CPU 三簇的 sugov_ext 节点，利用率下限应用到 top-app 的 cpu.uclamp.min，设备接口缺失时拒绝启用此参数。属于配置集 v3 的兼容扩展，UI 仍没有文件导入按钮。该参数同样支持三套预设、应用独立设置、20 秒试用和恢复。
+
+示例：`"response": {"upRateUs": 2000, "downRateUs": 16000, "topAppMinPercent": 5}`。此为可查看的参考草稿，未经过本机验证。

@@ -95,6 +95,7 @@ applyraw() {
     checkpoint && writecheck "$GPU/custom_boost_gpu_freq" "$7" && checkpoint && writecheck "$GPU/custom_upbound_gpu_freq" "$8" || return 1
     shift 8
     for g in $GROUPS; do checkpoint && printf '%s\n' "$(cpulist "$1")" > "$SETS/$g/cpus" || return 1; [ "$(mask "$(cat "$SETS/$g/cpus")")" = "$1" ] || return 1; shift; done
+    checkpoint && sh "$BASE/parameters.sh" apply "$token" || return 1
     [ "$(raw)" = "$target" ]
 }
 restorepair() {
@@ -130,6 +131,7 @@ restoreowned() {
 rollback() {
     reason=$1; load || return 0; [ "$savedboot" = "$(boot)" ] || { clearlease; return 0; }
     setphase restoring
+    sh "$BASE/parameters.sh" rollback "$token" || { setphase restore-failed;return 1; }
     if ! restoreowned "$previous"; then restorepermissions; setphase restore-failed; return 1; fi
     restorepermissions || { setphase restore-failed; return 1; }
     if [ "$previousphase" = active ]; then target=$previous; actor=$previousactor; deadline=0; save; setphase active; else clearlease; fi
@@ -141,12 +143,14 @@ validatefreq() {
     [ "$(readnode "$1/scaling_governor")" = sugov_ext ]
 }
 maketarget() {
-    [ "$#" = 12 ] || return 1
-    for n in "$@"; do number "$n" || return 1; done
+    [ "$#" != 12 ] || set -- "$@" -1 -1 -1
+    [ "$#" = 15 ] || return 1
+    requestedParameters="${13} ${14} ${15}"
+    index=0;for n in "$@";do index=$((index+1));[ "$index" -gt 12 ] || number "$n" || return 1;done
     validatefreq "$CPU/policy0" "$1" "$2" && validatefreq "$CPU/policy4" "$3" "$4" && validatefreq "$CPU/policy7" "$5" "$6" && [ "$7" -le "$8" ] || return 1
     lower=$(gpuindex "$7"); upper=$(gpuindex "$8"); number "$lower" && number "$upper" && [ "$lower" -ge "$upper" ] || return 1
     desired="$1 $2 $3 $4 $5 $6 $lower $upper"; shift 8
-    for n in "$@"; do [ "$n" -gt 0 ] && [ "$n" -le 255 ] || return 1; desired="$desired $n"; done
+    for group in $GROUPS;do n=$1;shift;[ "$n" -gt 0 ] && [ "$n" -le 255 ] || return 1;desired="$desired $n";done
 }
 validraw() {
     set -- $1; [ "$#" = 12 ] || return 1
@@ -165,12 +169,14 @@ trial() {
     case "$label" in auto.*) [ "$(phase)" != trial ] || exit 0;; esac
     if load && [ "$savedboot" = "$(boot)" ]; then
         state=$(phase); [ "$state" = active ] || [ "$state" = trial ] || fail '请先处理恢复失败'
+        if [ "$state" = trial ];then sh "$BASE/parameters.sh" rollback "$token" || return 1;fi
         if [ "$state" = active ]; then previous=$target; previousphase=active; previousactor=$actor; fi
     else original=$(raw); previous=$original; previousphase=none; previousactor=global; fi
     validraw "$original" && validraw "$previous" || fail '未能一致读取原值，未应用配置，请重试'
     # A replacement trial always returns to the last confirmed profile, not another unconfirmed draft.
     savedboot=$(boot); token=$(cat /proc/sys/kernel/random/uuid); deadline=$(($(now)+20)); target=$desired; actor=$label
     save || fail '无法保存回滚记录'; setphase trial; rm -f "$BASE/ready" "$BASE/applied"
+    sh "$BASE/parameters.sh" prepare "$token" $requestedParameters || { rollback parameter-prepare-failed;fail '响应参数无法准备，已撤回'; }
     if ! arm; then rollback guard-start-failed; fail '回滚进程未就绪，未应用'; fi
     if applyraw; then echo "$token" > "$BASE/applied"; echo "token=$token"; else rollback apply-failed; fail '写入或回读未通过，已撤回本次调整'; fi
 }
@@ -197,14 +203,22 @@ switchprofile() {
     [ -r "$BASE/rules" ] || return 1
     values=; fallback=
     while read -r name data; do [ "$name" != '*' ] || fallback=$data; if [ "$name" = "$pkg" ]; then values=$data; break; fi; done < "$BASE/rules"
-    [ -n "$values" ] || values=$fallback; maketarget $values || return 1
-    if load && [ "$savedboot" = "$(boot)" ] && [ "$(phase)" = active ] && [ "$target" = "$desired" ]; then return 0; fi
-    result=$(sh "$SELF" trial "auto.$pkg" $values) || { echo "$result"; return 1; }
+    [ -n "$values" ] || values=$fallback
+    automatic "auto.$pkg" $values
+}
+automatic() {
+    label=$1; shift
+    [ "$(phase)" != trial ] || return 0
+    maketarget "$@" || return 1
+    if load && [ "$savedboot" = "$(boot)" ] && [ "$(phase)" = active ] && [ "$target" = "$desired" ] && [ "$requestedParameters" = "$(cat "$BASE/parameters.flags" 2>/dev/null)" ]; then return 0; fi
+    result=$(sh "$SELF" trial "$label" "$@") || { echo "$result"; return 1; }
     t=${result#token=}; case "$t" in *[!a-f0-9-]*|'') return 0;; esac
     sh "$SELF" confirm "$t"
 }
 case "$1" in
 probe)
+    sh "$BASE/parameters.sh" heal || fail '调度参数恢复未完成'
+    if load && [ "$(phase)" = trial ] && [ "$(now)" -ge "$deadline" ];then lock || fail '已有操作正在执行';load && [ "$(phase)" = trial ] && [ "$(now)" -ge "$deadline" ] && rollback expired;fi
     platform; if load && [ "$savedboot" != "$(boot)" ]; then clearlease; fi
     sample=$(raw); set -- $sample
     for id in 0 4 7; do p=$CPU/policy$id; printf 'policy%s=%s;%s;%s;%s\n' "$id" "$1" "$2" "$(readnode "$p/scaling_governor")" "$(cat "$p/scaling_available_frequencies")"; shift 2; done
@@ -220,6 +234,8 @@ probe)
     fi
     echo "phase=$state"; echo "token=$token"; echo "remaining=$left"; echo "match=$match"; echo "actor=$actor"; echo "target=$target"; echo "last=$(cat "$BASE/last" 2>/dev/null)"
     echo "auto=$(test -f "$BASE/auto_enabled" && echo 1 || echo 0)"; echo "watch=$(watchalive && echo 1 || echo 0)"; echo "foregroundApp=$(cat "$BASE/foreground" 2>/dev/null)"; echo "watchError=$(head -n1 "$BASE/watch-error" 2>/dev/null)"
+    echo "persistent=$(test -f "$BASE/persistent-enabled" && echo 1 || echo 0)"; guardian=$(cat "$BASE/supervisor.pid" 2>/dev/null); echo "guardian=$(number "$guardian" && kill -0 "$guardian" 2>/dev/null && grep -aq "$BASE/runtime.sh" "/proc/$guardian/cmdline" && echo 1 || echo 0)"; echo "windowMode=$(cat "$BASE/window_mode" 2>/dev/null)"
+    sh "$BASE/parameters.sh" probe
     # Translate the raw GED indices for the persisted intent separately from instantaneous readings.
     if [ -n "$target" ]; then set -- $target; echo "targetGpu=$(gpufreq "$7");$(gpufreq "$8")"; fi
     ;;
@@ -227,17 +243,27 @@ trial) shift; trial "$@";;
 confirm)
     lock || fail '已有操作正在执行'; load || fail '试用已结束'
     [ "$2" = "$token" ] && [ "$(phase)" = trial ] && [ "$(now)" -lt "$deadline" ] && [ "$(cat "$BASE/applied" 2>/dev/null)" = "$token" ] || fail '试用已过期或未完整应用'
-    setphase active; deadline=0; save; echo confirmed > "$BASE/last"; echo '配置已保留';;
+    setphase active; deadline=0; save;sh "$BASE/parameters.sh" confirm "$token" || fail '调度参数确认记录未完成';echo confirmed > "$BASE/last"
+    if [ -f "$BASE/runtime.sh" ]; then
+        touch "$BASE/persistent-enabled"
+        case "$actor" in auto.*) :;; *)
+            set -- $target; printf '%s %s %s %s %s %s %s %s' "$1" "$2" "$3" "$4" "$5" "$6" "$(gpufreq "$7")" "$(gpufreq "$8")" > "$BASE/resume-profile.tmp"; shift 8; printf ' %s' "$@" >> "$BASE/resume-profile.tmp";printf ' %s' $(cat "$BASE/parameters.flags" 2>/dev/null) >> "$BASE/resume-profile.tmp"; echo >> "$BASE/resume-profile.tmp"; mv "$BASE/resume-profile.tmp" "$BASE/resume-profile";;
+        esac
+        sh "$BASE/runtime.sh" ensure
+    fi
+    echo '配置已保留';;
 rollback)
     lock || fail '已有操作正在执行'
     if [ -n "$2" ]; then load && [ "$2" = "$token" ] && [ "$(phase)" = trial ] || exit 0; fi
     rollback manual;;
 restore)
+    [ ! -f "$BASE/runtime.sh" ] || sh "$BASE/runtime.sh" disable || fail '后台恢复进程未停止，请重试'
     stopwatch; lock || fail '已有操作正在执行'; load || exit 0
-    [ "$savedboot" = "$(boot)" ] || { clearlease; exit 0; }; setphase restoring
+    [ "$savedboot" = "$(boot)" ] || { clearlease; exit 0; };sh "$BASE/parameters.sh" heal || fail '调度参数确认记录恢复未完成';setphase restoring
     if ! restoreowned "$original"; then restorepermissions; setphase restore-failed; fail '部分资源恢复失败，请重试'; fi
-    restorepermissions || { setphase restore-failed; fail 'GPU 原权限未恢复，请重试'; }; clearlease; echo restored > "$BASE/last";;
+    sh "$BASE/parameters.sh" restore || { setphase restore-failed;fail '调度响应参数恢复未完成'; };restorepermissions || { setphase restore-failed; fail 'GPU 原权限未恢复，请重试'; }; clearlease; echo restored > "$BASE/last";;
 switch) switchprofile "$2";;
+window) shift; automatic auto.window "$@";;
 start)
     platform; stopwatch; rm -f "$BASE/watch-error"; touch "$BASE/auto_enabled"
     nohup sh "$SELF" watch </dev/null > "$BASE/watch.log" 2>&1 &
@@ -250,22 +276,20 @@ watch)
     echo "$$" > /sys/fs/cgroup/cgroup.procs && echo "$$" > /dev/cpuset/tasks || exit 1
     fifo=$BASE/events.fifo; rm -f "$fifo"; mkfifo "$fifo" || exit 1
     since=$(date +%s.%N)
-    logcat -b events -v raw -T "$since" -s wm_set_resumed_activity > "$fifo" 2>/dev/null & reader=$!
+    logcat -b events -v raw -T "$since" -s wm_set_resumed_activity wm_task_moved wm_task_created wm_task_removed wm_task_to_front wm_task_windowing_mode_changed > "$fifo" 2>/dev/null & reader=$!
     trap 'kill "$reader" 2>/dev/null; if [ "$(cat "$BASE/watch.pid" 2>/dev/null)" = "$$" ]; then rm -f "$fifo" "$BASE/watch.ready" "$BASE/watch.pid"; fi' EXIT
     trap 'exit 0' TERM INT
     foreground=$(dumpsys activity activities | awk '/topResumedActivity/ {for(i=1;i<=NF;i++) if($i ~ /\//){split($i,a,"/"); print a[1]; exit}}')
     if [ -n "$foreground" ]; then
         echo "$foreground" > "$BASE/foreground"
-        if switchprofile "$foreground" > "$BASE/switch-output" 2>&1; then rm -f "$BASE/watch-error"; else cp "$BASE/switch-output" "$BASE/watch-error"; fi
+        if sh "$BASE/runtime.sh" scene > "$BASE/switch-output" 2>&1; then rm -f "$BASE/watch-error"; else cp "$BASE/switch-output" "$BASE/watch-error"; fi
     fi
     touch "$BASE/watch.ready"
     while read -r line; do
         [ -f "$BASE/auto_enabled" ] || break
-        case "$line" in '['*,*/*) pkg=${line#*,}; pkg=${pkg%%/*};; *) continue;; esac
-        case "$pkg" in ''|*[!A-Za-z0-9_.]*) continue;; esac
-        [ "$pkg" != "$foreground" ] || continue
-        foreground=$pkg; echo "$pkg" > "$BASE/foreground"
-        if switchprofile "$pkg" > "$BASE/switch-output" 2>&1; then rm -f "$BASE/watch-error"; else cp "$BASE/switch-output" "$BASE/watch-error"; fi
+        sleep 0.4; boundary=$(($(now)+1))
+        while read -r -t 0.05 line; do [ "$(now)" -lt "$boundary" ] || break; done
+        if sh "$BASE/runtime.sh" scene > "$BASE/switch-output" 2>&1; then rm -f "$BASE/watch-error"; else cp "$BASE/switch-output" "$BASE/watch-error"; fi
     done < "$fifo"
     ;;
 guard)

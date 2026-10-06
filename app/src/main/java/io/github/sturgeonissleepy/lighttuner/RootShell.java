@@ -1,4 +1,4 @@
-package cc.ccwu.apptuner;
+package io.github.sturgeonissleepy.lighttuner;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

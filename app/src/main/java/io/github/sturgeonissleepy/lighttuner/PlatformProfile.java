@@ -1,4 +1,4 @@
-package cc.ccwu.apptuner;
+package io.github.sturgeonissleepy.lighttuner;
 
 import org.json.*;
 import java.util.*;
@@ -9,24 +9,29 @@ public final class PlatformProfile {
     public static final String[] GROUPS={"background","systemBackground","foreground","topApp"};
     public final int[] min,max,masks;
     public final int gpuMin,gpuMax;
+    public final int upRateUs,downRateUs,topAppMin;
     public PlatformProfile(int[] min,int[] max,int gpuMin,int gpuMax,int[] masks) throws JSONException {
+        this(min,max,gpuMin,gpuMax,masks,-1,-1,-1);
+    }
+    public PlatformProfile(int[] min,int[] max,int gpuMin,int gpuMax,int[] masks,int up,int down,int boost) throws JSONException {
         require(min.length==3 && max.length==3 && masks.length==4,"必须配置三簇 CPU 和四类进程组");
         this.min=min.clone(); this.max=max.clone(); this.masks=masks.clone(); this.gpuMin=gpuMin; this.gpuMax=gpuMax;
+        require(up>=-1&&up<=1000000&&down>=-1&&down<=1000000&&boost>=-1&&boost<=80,"调度响应参数超出范围");upRateUs=up;downRateUs=down;topAppMin=boost;
         for(int i=0;i<3;i++) require(min[i]>0 && min[i]<=max[i] && max[i]<=4000000,"CPU 频率范围无效");
         require(gpuMin>0 && gpuMin<=gpuMax && gpuMax<=4000000,"GPU 频率范围无效");
         for(int m:masks) require(m>0 && m<=255,"每类进程至少选择 CPU0–7 中的一个核心");
     }
     public String arguments() {
-        return min[0]+" "+max[0]+" "+min[1]+" "+max[1]+" "+min[2]+" "+max[2]+" "+gpuMin+" "+gpuMax+" "+masks[0]+" "+masks[1]+" "+masks[2]+" "+masks[3];
+        return min[0]+" "+max[0]+" "+min[1]+" "+max[1]+" "+min[2]+" "+max[2]+" "+gpuMin+" "+gpuMax+" "+masks[0]+" "+masks[1]+" "+masks[2]+" "+masks[3]+" "+upRateUs+" "+downRateUs+" "+topAppMin;
     }
     public JSONObject json() throws JSONException {
         JSONArray clusters=new JSONArray(); JSONObject sets=new JSONObject();
         for(int i=0;i<3;i++) clusters.put(new JSONObject().put("policy","policy"+POLICIES[i]).put("minKHz",min[i]).put("maxKHz",max[i]));
         for(int i=0;i<4;i++) sets.put(GROUPS[i],array(masks[i]));
-        return new JSONObject().put("clusters",clusters).put("gpu",new JSONObject().put("minKHz",gpuMin).put("maxKHz",gpuMax)).put("cpuSets",sets);
+        JSONObject out=new JSONObject().put("clusters",clusters).put("gpu",new JSONObject().put("minKHz",gpuMin).put("maxKHz",gpuMax)).put("cpuSets",sets);if(upRateUs>=0||downRateUs>=0||topAppMin>=0)out.put("response",new JSONObject().put("upRateUs",upRateUs).put("downRateUs",downRateUs).put("topAppMinPercent",topAppMin));return out;
     }
     public static PlatformProfile parse(JSONObject o) throws JSONException {
-        keys(o,"clusters","gpu","cpuSets"); JSONObject sets=o.getJSONObject("cpuSets"); keys(sets,GROUPS);
+        if(o.has("response"))keys(o,"clusters","gpu","cpuSets","response");else keys(o,"clusters","gpu","cpuSets");JSONObject sets=o.getJSONObject("cpuSets"); keys(sets,GROUPS);
         JSONArray clusters=o.getJSONArray("clusters"); require(clusters.length()==3,"必须配置三簇 CPU");
         int[] lower=new int[3],upper=new int[3],masks=new int[4]; Set<Integer> seen=new HashSet<>();
         for(int j=0;j<3;j++) {
@@ -36,8 +41,9 @@ public final class PlatformProfile {
         }
         for(int i=0;i<4;i++) masks[i]=mask(sets.getJSONArray(GROUPS[i]));
         JSONObject gpu=o.getJSONObject("gpu"); keys(gpu,"minKHz","maxKHz");
-        return new PlatformProfile(lower,upper,integer(gpu,"minKHz"),integer(gpu,"maxKHz"),masks);
+        int up=-1,down=-1,boost=-1;if(o.has("response")){JSONObject response=o.getJSONObject("response");keys(response,"upRateUs","downRateUs","topAppMinPercent");up=responseInt(response,"upRateUs");down=responseInt(response,"downRateUs");boost=responseInt(response,"topAppMinPercent");}return new PlatformProfile(lower,upper,integer(gpu,"minKHz"),integer(gpu,"maxKHz"),masks,up,down,boost);
     }
+    private static int responseInt(JSONObject o,String key)throws JSONException {Object value=o.get(key);require(value instanceof Integer||value instanceof Long,"响应参数必须为整数");long n=((Number)value).longValue();require(n>=-1&&n<=1000000,"响应参数超出范围");return (int)n;}
     public static JSONObject object(String text) throws JSONException {
         JSONTokener t=new JSONTokener(text); Object v=t.nextValue(); require(v instanceof JSONObject && t.nextClean()==0,"文件必须是一个 JSON 对象"); return (JSONObject)v;
     }
